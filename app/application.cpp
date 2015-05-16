@@ -59,7 +59,7 @@ void beaconFunc(){
     post_data = "model=Smarthome2&controller_id=";
     post_data += system_get_chip_id();
     post_data += "\n";
-    hc.downloadString("http://dmarkey.com:8080/controller_ping_create/", NULL, true, post_data);
+    hc.downloadString("http://dmarkey.com:8080/controller_ping_create/", NULL);
     //http_post("http://dmarkey.com:8080/controller_ping_create/", post_data, NULL);
     //os_timer_setfn(&beaconTimer, (os_timer_func_t *)beaconFunc, NULL);
     //os_timer_arm(&beaconTimer, 20000, 0);
@@ -82,6 +82,14 @@ void connectOk()
 	procTimer.initializeMs(20 * 1000, publishMessage).start(); // every 20 seconds
 }
 
+void writeConf(String SSID, String Pwd){
+    String buf;
+    char cstring[100];
+    buf = SSID + "\n" + Pwd;
+    buf.toCharArray(cstring, 100);
+    fileSetContent(WIFI_CONF_FILE, cstring);
+}
+
 void onIndex(HttpRequest &request, HttpResponse &response)
 {
 	String ssid = request.getPostParameter("ssid");
@@ -92,6 +100,7 @@ void onIndex(HttpRequest &request, HttpResponse &response)
         return;
 	}
 	else{
+        writeConf(ssid, password);
         response.sendString("Success");
 	}
 
@@ -114,13 +123,7 @@ void connectFail()
 	// .. some you code for device configuration ..
 }
 
-void writeConf(String SSID, String Pwd){
-    String buf;
-    char cstring[100];
-    buf = SSID + "\n" + Pwd;
-    buf.toCharArray(cstring, 100);
-    fileSetContent(WIFI_CONF_FILE, cstring);
-}
+
 void init()
 {
 	Serial.begin(SERIAL_BAUD_RATE); // 115200 by default
@@ -131,7 +134,7 @@ void init()
 
 
 	if(!fileExist(WIFI_CONF_FILE)){
-        writeConf("access", "");
+        //writeConf("access", "");
 
         connectFail();
         return;
@@ -139,15 +142,19 @@ void init()
 	}
 	else{
         tmp = fileGetContent(WIFI_CONF_FILE);
+        Serial.println("WIFI_CONFIG");
+        Serial.println(tmp);
         int newline = tmp.indexOf('\n');
         wifiSSID = tmp.substring(0, newline);
-        wifiPassword = tmp.substring(newline, tmp.length());
+        wifiPassword = tmp.substring(newline+1, tmp.length());
+        Serial.println(wifiSSID);
+        Serial.println(wifiPassword);
         //wifiSSID = fileRead(wifi_file);
 
 
 	}
 
-	WifiStation.config(WIFI_SSID, WIFI_PWD);
+	WifiStation.config(wifiSSID, wifiPassword);
 	WifiStation.enable(true);
 	WifiAccessPoint.enable(false);
 
