@@ -15,6 +15,7 @@ void onMessageReceived(String topic, String message); // Forward declaration for
 
 Timer procTimer;
 
+Timer restartTimer;
 
 HttpServer server;
 
@@ -79,7 +80,7 @@ void connectOk()
 	//mqtt.subscribe(commandTopic());
 
 	// Start publishing loop
-	procTimer.initializeMs(20 * 1000, publishMessage).start(); // every 20 seconds
+	//restartTimer.initializeMs(20 * 1000, publishMessage).start(); // every 20 seconds
 }
 
 void writeConf(String SSID, String Pwd){
@@ -88,6 +89,11 @@ void writeConf(String SSID, String Pwd){
     buf = SSID + "\n" + Pwd;
     buf.toCharArray(cstring, 100);
     fileSetContent(WIFI_CONF_FILE, cstring);
+}
+
+
+void restart(){
+    System.restart();
 }
 
 void onIndex(HttpRequest &request, HttpResponse &response)
@@ -102,6 +108,7 @@ void onIndex(HttpRequest &request, HttpResponse &response)
 	else{
         writeConf(ssid, password);
         response.sendString("Success");
+        procTimer.initializeMs(1000, restart).start();
 	}
 
 }
