@@ -9,7 +9,23 @@
 #define page "<html> <body> <form action='.' method='post'>  SSID: <input type='text' name='ssid'><br>  Password: <input type='text' name='password'><br>  <input type='submit' value='Submit'></form></body></html>"
 
 
+#define FOUR_SWITCH_MODE 1
+
 void onMessageReceived(String topic, String message); // Forward declaration for our callback
+
+
+#ifdef FOUR_SWITCH_MODE
+    const int latchPin = 0;
+    //Pin connected to clock pin (SH_CP) of 74HC595
+    const int clockPin = 2;
+    ////Pin connected to Data in (DS) of 74HC595
+
+    const int dataPin = 3;
+
+#else
+
+
+#endif
 
 
 
@@ -17,11 +33,49 @@ Timer procTimer;
 
 Timer restartTimer;
 
+int register_state = 0;
+
 HttpServer server;
 
+
+
+class MqttClient2: public MqttClient{
+      using MqttClient::MqttClient; // Inherit Base's constructors.
+      /*void onError(err_t err){
+      {
+
+      }*/
+    void onError(err_t err)  {
+        connect("esp8266");
+        return;
+    }
+
+
+
+};
 // MQTT client
 // For quickly check you can use: http://www.hivemq.com/demos/websocket-client/ (Connection= test.mosquitto.org:8080)
-MqttClient mqtt("dmarkey.com", 8000, onMessageReceived);
+MqttClient2 mqtt("dmarkey.com", 8000, onMessageReceived);
+
+void ICACHE_FLASH_ATTR push_to_register()
+{
+    digitalWrite(latchPin, LOW);
+    shiftOut(dataPin, clockPin, MSBFIRST, register_state);
+    digitalWrite(latchPin, HIGH);
+
+}
+
+
+void ICACHE_FLASH_ATTR set_switch(int swit, bool state)
+{
+
+    char buf[9];
+    int i;
+    swit--;
+    bitSet(register_state, state);
+}
+
+
 
 String commandTopic(){
     String topic;
@@ -38,13 +92,29 @@ void publishMessage()
 	mqtt.publish("main/frameworks/sming", "Hello friends, from Internet of things :)"); // or publishWithQoS
 }
 
+void processSwitchcmd(JsonObject& obj){
+    int switch_num = obj["switch_num"];
+    bool state = obj["state"];
+
+    set_switch(switch_num, state);
+
+    //ack_task()
+}
+
 // Callback for messages, arrived from MQTT server
 void onMessageReceived(String topic, String message)
 {
 	Serial.print(topic);
 	if (topic == commandTopic()){
-        Serial.print(":\r\n\t"); // Prettify alignment for printing
-        Serial.println(message);
+	    StaticJsonBuffer<200> jsonBuffer;
+        const char *json = message.c_str();
+        JsonObject& root = jsonBuffer.parseObject((char *)json);
+
+        const char * command = root["command"];
+        if (strcmp(command, "switch") != -1){
+                processSwitchcmd(root);
+
+        }
 
 	}
 
@@ -74,10 +144,10 @@ void beaconFunc(){
 void connectOk()
 {
 	Serial.println("I'm CONNECTED");
-    beaconFunc();
+    //beaconFunc();
 	// Run MQTT client
-	//mqtt.connect("esp8266");
-	//mqtt.subscribe(commandTopic());
+	mqtt.connect("esp8266");
+	mqtt.subscribe(commandTopic());
 
 	// Start publishing loop
 	//restartTimer.initializeMs(20 * 1000, publishMessage).start(); // every 20 seconds
@@ -141,10 +211,7 @@ void init()
 
 
 	if(!fileExist(WIFI_CONF_FILE)){
-        //writeConf("access", "");
-
-        connectFail();
-        return;
+        writeConf(WIFI_SSID, WIFI_PWD);
 
 	}
 	else{
