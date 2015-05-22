@@ -216,6 +216,7 @@ void init()
 	pinMode(latchPin, OUTPUT);
 	pinMode(dataPin, OUTPUT);
 	pinMode(clockPin, OUTPUT);
+	push_to_register();
 
 	String wifiSSID, wifiPassword, tmp;
 	file_t wifi_file;
