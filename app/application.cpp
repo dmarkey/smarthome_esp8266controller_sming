@@ -22,9 +22,6 @@ void onMessageReceived(String topic, String message); // Forward declaration for
 
     const int dataPin = 3;
 
-#else
-
-
 #endif
 
 
@@ -39,13 +36,11 @@ HttpServer server;
 
 
 
-class MqttClient2: public MqttClient{
+class ReconnctingMqttClient2: public MqttClient{
       using MqttClient::MqttClient; // Inherit Base's constructors.
-      /*void onError(err_t err){
-      {
 
-      }*/
     void onError(err_t err)  {
+        close();
         connect("esp8266");
         return;
     }
@@ -55,7 +50,7 @@ class MqttClient2: public MqttClient{
 };
 // MQTT client
 // For quickly check you can use: http://www.hivemq.com/demos/websocket-client/ (Connection= test.mosquitto.org:8080)
-MqttClient2 mqtt("dmarkey.com", 8000, onMessageReceived);
+ReconnctingMqttClient2 mqtt("dmarkey.com", 8000, onMessageReceived);
 
 void ICACHE_FLASH_ATTR push_to_register()
 {
@@ -69,10 +64,16 @@ void ICACHE_FLASH_ATTR push_to_register()
 void ICACHE_FLASH_ATTR set_switch(int swit, bool state)
 {
 
-    char buf[9];
     int i;
     swit--;
+    Serial.print("Setting switch ");
+    Serial.print(swit);
+    Serial.print(" to ");
+    Serial.print(state);
+    Serial.println();
     bitSet(register_state, state);
+    //Serial.println(register_state, BIN);
+    push_to_register();
 }
 
 
@@ -95,6 +96,7 @@ void publishMessage()
 void processSwitchcmd(JsonObject& obj){
     int switch_num = obj["switch_num"];
     bool state = obj["state"];
+
 
     set_switch(switch_num, state);
 
@@ -203,8 +205,18 @@ void connectFail()
 
 void init()
 {
+#ifndef FOUR_SWITCH_MODE
+    pinMode(0, OUTPUT);
+    digitalWrite(0, LOW);
+    pinMode(3, OUTPUT);
+    digitalWrite(3, LOW);
+#endif // FOUR_SWITCH_MODE
 	Serial.begin(SERIAL_BAUD_RATE); // 115200 by default
 	Serial.systemDebugOutput(true); // Debug output to serial
+	pinMode(latchPin, OUTPUT);
+	pinMode(dataPin, OUTPUT);
+	pinMode(clockPin, OUTPUT);
+
 	String wifiSSID, wifiPassword, tmp;
 	file_t wifi_file;
 
