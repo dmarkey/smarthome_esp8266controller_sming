@@ -108,6 +108,20 @@ void processSwitchcmd(JsonObject& obj){
     //ack_task()
 }
 
+
+void ackTask(JsonObject& obj){
+    char post_data[256];
+    StaticJsonBuffer<200> jsonBuffer;
+    JsonObject& root = jsonBuffer.createObject();
+    root["controller_id"] = system_get_chip_id();
+    root.printTo(post_data, sizeof(post_data));
+
+    hc.setPostBody(post_data);
+    hc.downloadString("http://dmarkey.com:8080/controller_task_ack/", NULL);
+
+
+
+}
 // Callback for messages, arrived from MQTT server
 void onMessageReceived(String topic, String message)
 {
@@ -123,6 +137,7 @@ void onMessageReceived(String topic, String message)
 
         }
 
+        ackTask(root);
 	}
 
 }
