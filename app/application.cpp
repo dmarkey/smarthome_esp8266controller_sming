@@ -71,7 +71,7 @@ void ICACHE_FLASH_ATTR set_switch(int swit, bool state)
     Serial.print(" to ");
     Serial.print(state);
     Serial.println();
-    bitSet(register_state, state);
+    bitWrite(register_state, swit, state);
     //Serial.println(register_state, BIN);
     push_to_register();
 }
