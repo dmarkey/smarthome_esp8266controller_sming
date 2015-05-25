@@ -34,6 +34,16 @@ int register_state = 0;
 
 HttpServer server;
 
+HttpClient hc;
+
+
+String commandTopic(){
+    String topic;
+    int id = system_get_chip_id();
+    topic = "/smart_home_workqueue/";
+    topic  = topic + id;
+    return topic;
+}
 
 
 class ReconnctingMqttClient2: public MqttClient{
@@ -42,6 +52,7 @@ class ReconnctingMqttClient2: public MqttClient{
     void onError(err_t err)  {
         close();
         connect("esp8266");
+        subscribe(commandTopic());
         return;
     }
 
@@ -78,13 +89,7 @@ void ICACHE_FLASH_ATTR set_switch(int swit, bool state)
 
 
 
-String commandTopic(){
-    String topic;
-    int id = system_get_chip_id();
-    topic = "/smart_home_workqueue/";
-    topic  = topic + id;
-    return topic;
-}
+
 
 // Publish our message
 void publishMessage()
@@ -124,18 +129,18 @@ void onMessageReceived(String topic, String message)
 
 
 
-
+void printResponse(HttpClient& hc, bool success){
+    Serial.print(hc.getResponseString());
+    return;
+}
 
 void beaconFunc(){
-    HttpClient hc;
     String post_data;
     post_data = "model=Smarthome2&controller_id=";
     post_data += system_get_chip_id();
-    post_data += "\n";
-    hc.downloadString("http://dmarkey.com:8080/controller_ping_create/", NULL);
-    //http_post("http://dmarkey.com:8080/controller_ping_create/", post_data, NULL);
-    //os_timer_setfn(&beaconTimer, (os_timer_func_t *)beaconFunc, NULL);
-    //os_timer_arm(&beaconTimer, 20000, 0);
+    post_data += "\r\n";
+    hc.setPostBody(post_data);
+    hc.downloadString("http://dmarkey.com:8080/controller_ping_create/", printResponse);
 }
 
 
@@ -146,13 +151,10 @@ void beaconFunc(){
 void connectOk()
 {
 	Serial.println("I'm CONNECTED");
-    //beaconFunc();
+    beaconFunc();
 	// Run MQTT client
 	mqtt.connect("esp8266");
 	mqtt.subscribe(commandTopic());
-
-	// Start publishing loop
-	//restartTimer.initializeMs(20 * 1000, publishMessage).start(); // every 20 seconds
 }
 
 void writeConf(String SSID, String Pwd){
