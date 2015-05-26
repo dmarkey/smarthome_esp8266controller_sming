@@ -37,6 +37,16 @@ HttpServer server;
 HttpClient hc;
 
 
+
+String mqttName(){
+    String name;
+    int id = system_get_chip_id();
+    name = "SmartController-";
+    name  += id;
+    return name;
+}
+
+
 String commandTopic(){
     String topic;
     int id = system_get_chip_id();
@@ -51,7 +61,7 @@ class ReconnctingMqttClient2: public MqttClient{
 
     void onError(err_t err)  {
         close();
-        connect("esp8266");
+        connect(mqttName());
         subscribe(commandTopic());
         return;
     }
@@ -168,7 +178,7 @@ void connectOk()
 	Serial.println("I'm CONNECTED");
     beaconFunc();
 	// Run MQTT client
-	mqtt.connect("esp8266");
+	mqtt.connect(mqttName());
 	mqtt.subscribe(commandTopic());
 }
 
