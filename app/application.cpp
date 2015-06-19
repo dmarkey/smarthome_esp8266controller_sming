@@ -50,7 +50,7 @@ String mqttName(){
 String commandTopic(){
     String topic;
     int id = system_get_chip_id();
-    topic = "/smart_home_workqueue/";
+    topic = "/smart_plug_work/SmartPlug-";
     topic  = topic + id;
     return topic;
 }
@@ -109,10 +109,8 @@ void publishMessage()
 }
 
 void processSwitchcmd(JsonObject& obj){
-    int switch_num = obj["switch_num"];
+    int switch_num = obj["socketnumber"];
     bool state = obj["state"];
-
-
     set_switch(switch_num, state);
 
     //ack_task()
@@ -141,8 +139,8 @@ void onMessageReceived(String topic, String message)
         const char *json = message.c_str();
         JsonObject& root = jsonBuffer.parseObject((char *)json);
 
-        const char * command = root["command"];
-        if (strcmp(command, "switch") != -1){
+        const char * command = root["name"];
+        if (strcmp(command, "sockettoggle") != -1){
                 processSwitchcmd(root);
 
         }
