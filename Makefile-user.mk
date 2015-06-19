@@ -25,3 +25,5 @@
 
 # Com port speed
 # COM_SPEED	= 115200
+
+MODULES = app
