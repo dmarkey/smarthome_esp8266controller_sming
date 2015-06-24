@@ -1,4 +1,5 @@
 #include <user_config.h>
+#include <user_interface.h>
 #include <SmingCore/SmingCore.h>
 
 // Put you SSID and Password here
@@ -24,7 +25,7 @@ void onMessageReceived(String topic, String message); // Forward declaration for
 
 #endif
 
-
+HttpClient hc;
 
 Timer procTimer;
 
@@ -34,8 +35,176 @@ int register_state = 0;
 
 HttpServer server;
 
-HttpClient hc;
+bool httpInProgress = false;
 
+
+struct QueuedRequest{
+    String url;
+    String post_data;
+    String content_type;
+};
+
+template <class T>
+class QueueNode
+{
+public:
+	T data;
+	QueueNode *next;
+	QueueNode(const T info, QueueNode *nextValue = NULL)
+	{
+		data = info;
+		next = nextValue;
+	}
+	QueueNode(QueueNode *nextValue = NULL)
+	{
+		next = nextValue;
+	}
+};
+
+// Queue class.
+template <class T>
+class Queue
+{
+private:
+	QueueNode<T> *front;
+	QueueNode<T> *rear;
+	int size;
+
+public:
+	Queue();
+	~Queue();
+
+	// Check if queue is empty.
+	bool IsEmpty();
+
+	// Clear the queue.
+	void Clear();
+
+	// Add an item to the end of the queue.
+	bool EnQueue(T item);
+
+	// Get an item from the front of the queue.
+	T DeQueue();
+
+	// Get an item from the front of the queue without removing it.
+	T GetFirstNode();
+
+	// Print contents of the queue.
+	void Print();
+};
+
+template <class T>
+Queue<T>::Queue()
+{
+	// Create empty queue with front and rear pointing to NULL.
+	front = rear = NULL;
+}
+
+template <class T>
+Queue<T>::~Queue()
+{
+	Clear();
+}
+
+template <class T>
+bool Queue<T>::IsEmpty()
+{
+	// If front is NULL then the queue is empty.
+	return front == NULL;
+}
+
+template <class T>
+void Queue<T>::Clear()
+{
+	QueueNode<T> *tmp;
+
+	// Go through each node until the end of the queue.
+	while (front != NULL)
+	{
+		// Point tmp to next node.
+		tmp = front->next;
+
+		// Delete current node.
+		delete front;
+
+		// Point front to next node.
+		front = tmp;
+	}
+}
+
+template <class T>
+bool Queue<T>::EnQueue(T value)
+{
+	// Create new node.
+	QueueNode<T> *node = new QueueNode<T>(value);
+	size++;
+
+	// If queue is empty then point both front and rear to the new node.
+	if (IsEmpty())
+	{
+		front = rear = node;
+		return true;
+	}
+
+	// Add node to the end of the queue and repoint rear to the new node.
+	rear->next = node;
+	rear = node;
+
+	return true;
+}
+
+template <class T>
+T Queue<T>::DeQueue()
+{
+	// If queue is empty return NULL.
+	if (IsEmpty())
+	{
+		return T();
+	}
+
+	// Save value from top node.
+	T value = front->data;
+
+	// Point tmp to front.
+	QueueNode<T> *tmp = front;
+
+	// Repoint front to the second node in the queue.
+	front = front->next;
+
+	// Remove first node.
+	delete tmp;
+
+	// Update queue size.
+	size--;
+
+	return value;
+}
+
+template <class T>
+T Queue<T>::GetFirstNode()
+{
+	// If queue is empty return NULL.
+	if (IsEmpty())
+	{
+		return T();
+	}
+
+	return front->data;
+}
+
+template <class T>
+void Queue<T>::Print()
+{
+	QueueNode<T> *tmp = front;
+	while (tmp != NULL)
+	{
+		//cout << tmp->data << " ";
+		tmp = tmp->next;
+	}
+}
+
+
+Queue<QueuedRequest> web_queue;
 
 
 String mqttName(){
@@ -72,6 +241,44 @@ class ReconnctingMqttClient2: public MqttClient{
 // MQTT client
 // For quickly check you can use: http://www.hivemq.com/demos/websocket-client/ (Connection= test.mosquitto.org:8080)
 ReconnctingMqttClient2 mqtt("dmarkey.com", 8000, onMessageReceived);
+
+bool processing_web = false;
+
+
+void printResponse(HttpClient& hc, bool success);
+
+void process_web(){
+    if (processing_web == true){
+        return;
+    }
+    if (web_queue.IsEmpty()){
+        processing_web = false;
+        return;
+    }
+    QueuedRequest request = web_queue.DeQueue();
+
+    hc.setRequestContentType(request.content_type);
+    hc.setPostBody(request.post_data);
+    hc.downloadString(request.url, printResponse);
+
+}
+
+
+void queue_web_request(String url, String post_data, String content_type="multipart/form-data"){
+    QueuedRequest qr;
+    qr.post_data = post_data;
+    qr.url = url;
+    qr.content_type = content_type;
+    web_queue.EnQueue(qr);
+    process_web();
+
+}
+
+void printResponse(HttpClient& hc, bool success){
+    Serial.print(hc.getResponseString());
+    processing_web = false;
+    process_web();
+}
 
 void ICACHE_FLASH_ATTR push_to_register()
 {
@@ -117,22 +324,30 @@ void processSwitchcmd(JsonObject& obj){
 }
 
 
+
+
 void ackTask(JsonObject& obj){
+
     char post_data[256];
     StaticJsonBuffer<200> jsonBuffer;
     JsonObject& root = jsonBuffer.createObject();
     root["controller_id"] = system_get_chip_id();
-    root.printTo(post_data, sizeof(post_data));
+    root["task_id"] = obj["task_id"];
+    root["status"] = 2;
 
-    hc.setPostBody(post_data);
-    hc.downloadString("http://dmarkey.com:8080/controller_task_ack/", NULL);
+    root.printTo(post_data, sizeof(post_data));
+    queue_web_request("http://dmarkey.com:8080/controller_task_status/", post_data, "application/json");
+
 
 
 
 }
+
+
 // Callback for messages, arrived from MQTT server
 void onMessageReceived(String topic, String message)
 {
+
 	Serial.print(topic);
 	if (topic == commandTopic()){
 	    StaticJsonBuffer<200> jsonBuffer;
@@ -152,18 +367,17 @@ void onMessageReceived(String topic, String message)
 
 
 
-void printResponse(HttpClient& hc, bool success){
-    Serial.print(hc.getResponseString());
-    return;
-}
+
 
 void beaconFunc(){
+    HttpClient hc;
     String post_data;
     post_data = "model=Smarthome2&controller_id=";
     post_data += system_get_chip_id();
     post_data += "\r\n";
-    hc.setPostBody(post_data);
-    hc.downloadString("http://dmarkey.com:8080/controller_ping_create/", printResponse);
+    queue_web_request("http://dmarkey.com:8080/controller_ping_create/", post_data);
+    /*hc.setPostBody(post_data);
+    hc.downloadString(", printResponse);*/
 }
 
 
@@ -242,6 +456,7 @@ void init()
 	pinMode(dataPin, OUTPUT);
 	pinMode(clockPin, OUTPUT);
 	push_to_register();
+	//wifi_station_set_hostname("MyEsp8266");
 
 	String wifiSSID, wifiPassword, tmp;
 	file_t wifi_file;
