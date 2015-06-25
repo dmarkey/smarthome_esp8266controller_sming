@@ -29,7 +29,6 @@ HttpClient hc;
 
 Timer procTimer;
 
-Timer restartTimer;
 
 int register_state = 0;
 
@@ -55,9 +54,8 @@ String commandTopic(){
     return topic;
 }
 
-
 class ReconnctingMqttClient2: public MqttClient{
-      using MqttClient::MqttClient; // Inherit Base's constructors.
+    using MqttClient::MqttClient; // Inherit Base's constructors.
 
     void onError(err_t err)  {
         close();
@@ -66,21 +64,12 @@ class ReconnctingMqttClient2: public MqttClient{
         return;
     }
 
-
-
 };
-// MQTT client
-// For quickly check you can use: http://www.hivemq.com/demos/websocket-client/ (Connection= test.mosquitto.org:8080)
+
 ReconnctingMqttClient2 mqtt("dmarkey.com", 8000, onMessageReceived);
-
-bool processing_web = false;
-
-
-void printResponse(HttpClient& hc, bool success);
 
 void printResponse(HttpClient& hc, bool success){
     Serial.print(hc.getResponseString());
-    processing_web = false;
 }
 
 void ICACHE_FLASH_ATTR push_to_register()
@@ -146,10 +135,11 @@ void onMessageReceived(String topic, String message)
 
         if (strcmp(command, "sockettoggle") != -1){
                 processSwitchcmd(root);
+                setTaskStatus(root, 3);
 
         }
 
-        setTaskStatus(root, 3);
+
 	}
 
 }
@@ -164,13 +154,11 @@ void processBeaconResponse(HttpClient& hc, bool success){
         mqtt.subscribe(commandTopic());
     }
 
+
+
     //processing_web = false;
     //process_web();
 }
-
-
-
-
 
 
 void beaconFunc(){
@@ -238,7 +226,7 @@ void connectFail()
 	server.addPath("/", onIndex);
 	WifiStation.enable(false);
 
-	Serial.println("I'm NOT CONNECTED. Need help :(");
+	Serial.println("Fallback WIFI mode.");
 
 	// .. some you code for device configuration ..
 }
