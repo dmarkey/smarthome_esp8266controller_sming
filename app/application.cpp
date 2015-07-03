@@ -54,7 +54,7 @@ String commandTopic(){
     return topic;
 }
 
-class ReconnctingMqttClient2: public MqttClient{
+class ReconnctingMqttClient: public MqttClient{
     using MqttClient::MqttClient; // Inherit Base's constructors.
 
     void onError(err_t err)  {
@@ -66,7 +66,7 @@ class ReconnctingMqttClient2: public MqttClient{
 
 };
 
-ReconnctingMqttClient2 mqtt("dmarkey.com", 8000, onMessageReceived);
+ReconnctingMqttClient mqtt("dmarkey.com", 8000, onMessageReceived);
 
 void printResponse(HttpClient& hc, bool success){
     Serial.print(hc.getResponseString());
@@ -119,6 +119,17 @@ void setTaskStatus(JsonObject& obj, int status){
     //queue_web_request("http://dmarkey.com:8080/controller_task_status/", post_data, "application/json");
 }
 
+void beaconComplete(){
+
+    StaticJsonBuffer<200> jsonBuffer;
+    char data[200];
+    JsonObject& root = jsonBuffer.createObject();
+    root["controller_id"] = system_get_chip_id();
+    root.printTo(data, sizeof(data));
+    mqtt.publish("/admin/beacon", data);
+    //queue_web_request("http://dmarkey.com:8080/controller_task_status/", post_data, "application/json");
+}
+
 
 // Callback for messages, arrived from MQTT server
 void onMessageReceived(String topic, String message)
@@ -152,6 +163,7 @@ void processBeaconResponse(HttpClient& hc, bool success){
     if (success){
         mqtt.connect(mqttName());
         mqtt.subscribe(commandTopic());
+        beaconComplete();
     }
 
 
