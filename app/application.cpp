@@ -10,7 +10,8 @@
 #define page "<html> <body> <form action='.' method='post'>  SSID: <input type='text' name='ssid'><br>  Password: <input type='text' name='password'><br>  <input type='submit' value='Submit'></form></body></html>"
 
 
-#define FOUR_SWITCH_MODE 1
+#define _FOUR_SWITCH_MODE 0
+
 
 void onMessageReceived(String topic, String message); // Forward declaration for our callback
 
@@ -23,6 +24,10 @@ void onMessageReceived(String topic, String message); // Forward declaration for
 
     const int dataPin = 3;
 
+    int register_state = 0;
+
+#else
+    int switches[] = {0, 2};
 #endif
 
 HttpClient hc;
@@ -30,7 +35,6 @@ HttpClient hc;
 Timer procTimer;
 
 
-int register_state = 0;
 
 HttpServer server;
 
@@ -54,7 +58,7 @@ String commandTopic(){
     return topic;
 }
 
-class ReconnctingMqttClient: public MqttClient{
+class ReconnectingMqttClient: public MqttClient{
     using MqttClient::MqttClient; // Inherit Base's constructors.
 
     void onError(err_t err)  {
@@ -66,12 +70,14 @@ class ReconnctingMqttClient: public MqttClient{
 
 };
 
-ReconnctingMqttClient mqtt("dmarkey.com", 8000, onMessageReceived);
+ReconnectingMqttClient mqtt("dmarkey.mooo.com", 8000, onMessageReceived);
 
 void printResponse(HttpClient& hc, bool success){
     Serial.print(hc.getResponseString());
 }
 
+
+#ifdef FOUR_SWITCH_MODE
 void ICACHE_FLASH_ATTR push_to_register()
 {
     digitalWrite(latchPin, LOW);
@@ -79,21 +85,31 @@ void ICACHE_FLASH_ATTR push_to_register()
     digitalWrite(latchPin, HIGH);
 
 }
+#endif // FOUR_SWITCH_MODE
 
 
 void ICACHE_FLASH_ATTR set_switch(int swit, bool state)
 {
-
-    int i;
     swit--;
     Serial.print("Setting switch ");
     Serial.print(swit);
     Serial.print(" to ");
     Serial.print(state);
-    Serial.println();
-    bitWrite(register_state, swit, state);
-    //Serial.println(register_state, BIN);
-    push_to_register();
+    #ifdef FOUR_SWITCH_MODE
+        int i;
+        swit--;
+        Serial.print("Setting switch ");
+        Serial.print(swit);
+        Serial.print(" to ");
+        Serial.print(state);
+        Serial.println();
+        bitWrite(register_state, swit, state);
+        //Serial.println(register_state, BIN);
+        push_to_register();
+    #else
+
+        digitalWrite(switches[swit], !state);
+    #endif
 }
 
 
@@ -175,7 +191,7 @@ void processBeaconResponse(HttpClient& hc, bool success){
 
 void beaconFunc(){
     String post_data;
-    post_data = "model=Smarthome2&controller_id=";
+    post_data = "model=SmartController-2&controller_id=";
     post_data += system_get_chip_id();
     post_data += "\r\n";
     //queue_web_request("http://dmarkey.com:8080/controller_ping_create/", post_data);
@@ -246,18 +262,25 @@ void connectFail()
 
 void init()
 {
-#ifndef FOUR_SWITCH_MODE
+#ifdef FOUR_SWITCH_MODE
     pinMode(0, OUTPUT);
     digitalWrite(0, LOW);
     pinMode(3, OUTPUT);
     digitalWrite(3, LOW);
-#endif // FOUR_SWITCH_MODE
-	Serial.begin(SERIAL_BAUD_RATE); // 115200 by default
-	Serial.systemDebugOutput(true); // Debug output to serial
-	pinMode(latchPin, OUTPUT);
+    pinMode(latchPin, OUTPUT);
 	pinMode(dataPin, OUTPUT);
 	pinMode(clockPin, OUTPUT);
-	push_to_register();
+    push_to_register();
+
+#else // FOUR_SWITCH_MODE
+    pinMode(0, OUTPUT);
+    pinMode(2, OUTPUT);
+#endif
+
+	Serial.begin(SERIAL_BAUD_RATE); // 115200 by default
+	Serial.systemDebugOutput(true); // Debug output to serial
+
+
 	//wifi_station_set_hostname("MyEsp8266");
 
 	String wifiSSID, wifiPassword, tmp;
